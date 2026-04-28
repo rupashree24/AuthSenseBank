@@ -323,18 +323,18 @@ public class SensorService extends Service implements SensorEventListener, TextT
      * Send email automatically in the background using JavaMail
      */
     private void sendEmailNotification() {
-        // ⚠️ MANDATORY: CHANGE THESE TWO LINES
+        // 🔑 CONFIGURATION: Set this once. This is the "Bank's" email.
         final String senderEmail = "your-email@gmail.com"; 
         final String senderPassword = "your-app-password"; 
 
-        if (senderEmail.equals("your-email@gmail.com")) {
-            Log.e(TAG, "❌ EMAIL NOT SENT: You haven't configured senderEmail in SensorService.java");
-            return;
-        }
-
         new Thread(() -> {
             try {
-                Log.i(TAG, "📧 Attempting background email to: " + currentUserEmail);
+                if (senderEmail.contains("your-email")) {
+                    Log.w(TAG, "📧 Email skipped: Placeholder credentials detected. Please set real ones in SensorService.java");
+                    return;
+                }
+
+                Log.i(TAG, "📧 Sending alert from " + senderEmail + " to " + currentUserEmail);
 
                 // SMTP Properties
                 Properties props = new Properties();
