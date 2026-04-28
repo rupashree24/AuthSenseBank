@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AuthSense Bank</string>
+    <string name="contact_us">Contact Us</string>
+    <string name="sign_up">Sign Up</string>
+    <string name="sign_in">Sign In</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_credit">Credit Card</string>
+    <string name="nav_features">Features</string>
+    <string name="nav_news">News</string>
+    <string name="tagline">Banking Redefined for the Future</string>
+    <string name="subtitle">Secure. Smart. Seamless.</string>
+</resources>

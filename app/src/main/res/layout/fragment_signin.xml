@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/off_white">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="28dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Welcome Back 👋"
+            android:textColor="@color/navy_dark"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:fontFamily="serif"
+            android:paddingBottom="6dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sign in to your AuthSense account"
+            android:textColor="@color/text_grey"
+            android:textSize="13sp"
+            android:paddingBottom="28dp" />
+
+        <!-- Customer ID -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Customer ID"
+            android:textColor="@color/navy_dark"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:paddingBottom="6dp" />
+
+        <EditText
+            android:id="@+id/et_customer_id"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:hint="Enter your Customer ID"
+            android:inputType="text"
+            android:background="@drawable/bg_input"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:textSize="14sp"
+            android:textColor="@color/navy_dark"
+            android:textColorHint="@color/text_grey"
+            android:layout_marginBottom="18dp" />
+
+        <!-- Password -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Password / MPIN"
+            android:textColor="@color/navy_dark"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:paddingBottom="6dp" />
+
+        <EditText
+            android:id="@+id/et_password"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:hint="Enter your password"
+            android:inputType="textPassword"
+            android:background="@drawable/bg_input"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:textSize="14sp"
+            android:textColor="@color/navy_dark"
+            android:textColorHint="@color/text_grey"
+            android:layout_marginBottom="10dp" />
+
+        <!-- Forgot Password -->
+        <TextView
+            android:id="@+id/tv_forgot"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Forgot Password?"
+            android:textColor="@color/gold"
+            android:textSize="13sp"
+            android:layout_gravity="end"
+            android:paddingBottom="28dp" />
+
+        <!-- Sign In Button -->
+        <TextView
+            android:id="@+id/btn_signin"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="Sign In →"
+            android:textColor="@color/navy_dark"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="@drawable/bg_apply_btn"
+            android:layout_marginBottom="20dp" />
+
+        <!-- Divider -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="20dp">
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:background="@color/text_grey" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="  or  "
+                android:textColor="@color/text_grey"
+                android:textSize="12sp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:background="@color/text_grey" />
+        </LinearLayout>
+
+        <!-- Biometric Login -->
+        <TextView
+            android:id="@+id/btn_biometric"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="🔒  Login with Biometrics"
+            android:textColor="@color/navy_dark"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="@drawable/bg_outline_btn"
+            android:layout_marginBottom="28dp" />
+
+        <!-- New user prompt -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="New to AuthSense? "
+                android:textColor="@color/text_grey"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/tv_go_signup"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Create Account"
+                android:textColor="@color/gold"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

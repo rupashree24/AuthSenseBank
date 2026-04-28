@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/navy_dark">
+
+    <!-- Logo Area -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="180dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🏦"
+            android:textSize="48sp"
+            android:gravity="center" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AuthSense Bank"
+            android:textColor="@color/gold"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            android:fontFamily="serif"
+            android:paddingTop="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Secure. Smart. Seamless."
+            android:textColor="@color/text_grey"
+            android:textSize="13sp"
+            android:paddingTop="4dp" />
+    </LinearLayout>
+
+    <!-- Tab Switcher: Sign In | Sign Up -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:background="@color/navy_mid"
+        android:weightSum="2">
+
+        <TextView
+            android:id="@+id/tab_signin"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="Sign In"
+            android:gravity="center"
+            android:textColor="@color/gold"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:background="@color/navy_dark" />
+
+        <TextView
+            android:id="@+id/tab_signup"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="Sign Up"
+            android:gravity="center"
+            android:textColor="@color/text_grey"
+            android:textSize="15sp"
+            android:background="@color/navy_mid" />
+    </LinearLayout>
+
+    <!-- Form Container -->
+    <FrameLayout
+        android:id="@+id/auth_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/off_white" />
+
+</LinearLayout>
