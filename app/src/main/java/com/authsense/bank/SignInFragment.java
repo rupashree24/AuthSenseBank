@@ -36,6 +36,15 @@ public class SignInFragment extends Fragment {
             }
 
             SharedPreferences prefs = getActivity().getSharedPreferences("AuthSensePrefs", Context.MODE_PRIVATE);
+            
+            // CHECK FOR USER-SPECIFIC PERMANENT BLOCK
+            String blockKey = "blocked_" + inputEmail;
+            if (prefs.getBoolean(blockKey, false)) {
+                Log.e(TAG, "🚫 LOGIN BLOCKED: Account " + inputEmail + " is permanently disabled.");
+                Toast.makeText(getContext(), "ACCOUNT PERMANENTLY BLOCKED. Contact bank support.", Toast.LENGTH_LONG).show();
+                return;
+            }
+
             String savedEmail = prefs.getString("user_email", "");
             String savedPass = prefs.getString("user_password", "");
 
@@ -45,20 +54,8 @@ public class SignInFragment extends Fragment {
                 // Mark as logged in
                 prefs.edit().putBoolean("is_logged_in", true).apply();
 
-                // Check if baseline exists for this user
-                String baselineKey = "baseline_" + inputEmail;
-                boolean hasBaseline = prefs.getSharedPreferences("BehaviorBaseline", Context.MODE_PRIVATE)
-                    .getString(baselineKey, null) != null;
-
-                // If first login, go to baseline collection; otherwise go to MainActivity
-                Intent intent;
-                if (!hasBaseline) {
-                    Log.i(TAG, "First login detected. Starting baseline collection...");
-                    intent = new Intent(getActivity(), BaselineCollectionActivity.class);
-                } else {
-                    intent = new Intent(getActivity(), MainActivity.class);
-                }
-                
+                // Go directly to MainActivity - SensorService will handle background learning
+                Intent intent = new Intent(getActivity(), MainActivity.class);
                 intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 startActivity(intent);
             } else {

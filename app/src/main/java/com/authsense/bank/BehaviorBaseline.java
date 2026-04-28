@@ -82,6 +82,25 @@ public class BehaviorBaseline {
     }
 
     /**
+     * Adapt the baseline to normal behavior over time (Adaptive Learning)
+     */
+    public void updateBaseline(KeystrokeTracker currentTracker, double currentMSE, double alpha) {
+        if (!isBaselineComplete) return;
+
+        // Exponential Moving Average to slowly adapt to user changes
+        this.meanKeystrokeInterval = (alpha * currentTracker.getMeanKeystrokeInterval()) + (1 - alpha) * this.meanKeystrokeInterval;
+        this.keystrokeIntervalStdDev = (alpha * currentTracker.getKeystrokeIntervalStdDev()) + (1 - alpha) * this.keystrokeIntervalStdDev;
+        this.meanPressure = (alpha * currentTracker.getMeanPressure()) + (1 - alpha) * this.meanPressure;
+        this.pressureRange = (alpha * currentTracker.getPressureRange()) + (1 - alpha) * this.pressureRange;
+        this.meanSwipeVelocity = (alpha * currentTracker.getMeanSwipeVelocity()) + (1 - alpha) * this.meanSwipeVelocity;
+        
+        this.baselineMSE = (alpha * currentMSE) + (1 - alpha) * this.baselineMSE;
+        
+        saveToPrefs();
+        Log.d(TAG, "Baseline adapted for user: " + userEmail);
+    }
+
+    /**
      * Save baseline to SharedPreferences
      */
     private void saveToPrefs() {

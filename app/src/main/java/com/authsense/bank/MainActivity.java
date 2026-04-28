@@ -73,14 +73,26 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Reactive Lock: If background service locked the app, kick user out
+        SharedPreferences prefs = getSharedPreferences("AuthSensePrefs", Context.MODE_PRIVATE);
+        if (!prefs.getBoolean("is_logged_in", false)) {
+            Log.e(TAG, "🔒 SYSTEM LOCKED - Redirecting to Login");
+            startActivity(new Intent(this, AuthActivity.class));
+            finish();
+        }
+    }
+
     /**
      * Capture touch events to track keystroke/swipe patterns
      */
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
-        // Forward touch events to SensorService for keystroke tracking
-        if (event.getAction() == MotionEvent.ACTION_DOWN || 
-            event.getAction() == MotionEvent.ACTION_MOVE) {
+        // Only record the initial touch (ACTION_DOWN) as a keystroke
+        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            Log.d(TAG, "Touch detected at: " + event.getX() + ", " + event.getY());
             recordKeystrokeEvent(event.getPressure());
         }
         return super.dispatchTouchEvent(event);
@@ -90,19 +102,16 @@ public class MainActivity extends AppCompatActivity {
      * Record keystroke/touch event (sends to service)
      */
     private void recordKeystrokeEvent(float pressure) {
-        // Store in shared preferences for service to access
-        SharedPreferences prefs = getSharedPreferences("KeystrokeData", Context.MODE_PRIVATE);
-        long lastKeystroke = prefs.getLong("last_keystroke_time", 0);
         long currentTime = System.currentTimeMillis();
         
-        // Send broadcast to SensorService (if running)
+        // Send explicit broadcast to SensorService
         Intent intent = new Intent("com.authsense.bank.KEYSTROKE_EVENT");
+        intent.setPackage(getPackageName()); // CRITICAL: Makes the broadcast explicit
         intent.putExtra("pressure", pressure);
         intent.putExtra("timestamp", currentTime);
-        intent.putExtra("interval", lastKeystroke > 0 ? currentTime - lastKeystroke : 0);
-        sendBroadcast(intent);
         
-        prefs.edit().putLong("last_keystroke_time", currentTime).apply();
+        sendBroadcast(intent);
+        Log.d(TAG, "Broadcast sent for tap");
     }
 
     private void loadFragment(Fragment fragment) {

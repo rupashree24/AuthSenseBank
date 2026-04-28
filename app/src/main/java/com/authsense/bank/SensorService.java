@@ -22,6 +22,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Properties;
+
+import javax.mail.Authenticator;
+import javax.mail.Message;
+import javax.mail.MessagingException;
+import javax.mail.PasswordAuthentication;
+import javax.mail.Session;
+import javax.mail.Transport;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
 
 import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OrtSession;
@@ -47,21 +57,31 @@ public class SensorService extends Service implements SensorEventListener, TextT
 
     // Risk scoring variables
     private double riskScore = 0;
-    private static final double RISK_THRESHOLD = 3.0;  // Lock after 3 points of risk
-    private static final double RISK_INCREMENT = 1.0;  // Add 1 point per anomaly
-    private static final double RISK_DECAY = 0.1;      // Remove 0.1 per normal window
+    private boolean isLocked = false;
+    private boolean warningSent = false;
+    private static final double RISK_WARNING = 2.0;
+    private static final double RISK_CRITICAL = 3.0;
+    private static final double RISK_INCREMENT = 1.0;
+    private static final double RISK_DECAY = 0.1;
     
     private BehaviorBaseline behaviorBaseline;
     private KeystrokeTracker keystrokeTracker;
     private String currentUserEmail;
+    
+    // Background collection variables
+    private boolean isCollectingBaseline = false;
+    private List<Double> collectionMSEs = new ArrayList<>();
+    private static final int REQUIRED_MSE_SAMPLES = 50; // About 2-3 mins of background data
     
     // Keystroke receiver
     private BroadcastReceiver keystrokeReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if ("com.authsense.bank.KEYSTROKE_EVENT".equals(intent.getAction())) {
-                float pressure = intent.getFloatExtra("pressure", 0);
+                float pressure = intent.getFloatExtra("pressure", 0.5f); // Default to 0.5 for emulator
+                if (pressure == 0) pressure = 0.5f; // Fix for emulator mouse clicks
                 keystrokeTracker.recordKeystroke(pressure);
+                Log.d(TAG, "Keystroke received in service. Total: " + keystrokeTracker.getKeystrokeCount());
             }
         }
     };
@@ -84,7 +104,8 @@ public class SensorService extends Service implements SensorEventListener, TextT
         keystrokeTracker = new KeystrokeTracker();
         
         if (!behaviorBaseline.isBaselineComplete()) {
-            Log.w(TAG, "⚠️ No baseline found for user: " + currentUserEmail);
+            Log.w(TAG, "⚠️ No baseline found. Starting background collection...");
+            isCollectingBaseline = true;
         } else {
             Log.i(TAG, "✅ Baseline loaded: " + behaviorBaseline);
         }
@@ -104,7 +125,11 @@ public class SensorService extends Service implements SensorEventListener, TextT
         
         // Register keystroke receiver
         IntentFilter filter = new IntentFilter("com.authsense.bank.KEYSTROKE_EVENT");
-        registerReceiver(keystrokeReceiver, filter);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(keystrokeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(keystrokeReceiver, filter);
+        }
     }
 
     @Override
@@ -137,11 +162,7 @@ public class SensorService extends Service implements SensorEventListener, TextT
     }
 
     private void runInference() {
-        if (modelManager == null || modelManager.getSession() == null) return;
-        if (!behaviorBaseline.isBaselineComplete()) {
-            Log.w(TAG, "Baseline not ready, skipping inference");
-            return;
-        }
+        if (modelManager == null || modelManager.getSession() == null || isLocked) return;
         
         try {
             float[][][] inputData = new float[1][WINDOW_SIZE][NUM_FEATURES];
@@ -152,29 +173,11 @@ public class SensorService extends Service implements SensorEventListener, TextT
             
             float[][][] outputData = (float[][][]) result.get(0).getValue();
             double mse = calculateMSE(inputData[0], outputData[0]);
-            double motionThreshold = behaviorBaseline.getMotionThreshold();
-            boolean isMotionAnomaly = mse > motionThreshold;
-            
-            // Calculate keystroke anomaly score
-            double keystrokeAnomalyScore = keystrokeTracker.hasEnoughData() ? 
-                behaviorBaseline.calculateKeystrokeAnomalyScore(keystrokeTracker) : 0;
-            
-            // Update risk score
-            if (isMotionAnomaly || keystrokeAnomalyScore > 0.5) {
-                riskScore += RISK_INCREMENT;
-                Log.w(TAG, "⚠️ Anomaly detected | Motion MSE: " + mse + " (threshold: " + motionThreshold + 
-                    ") | Keystroke Anomaly: " + String.format("%.2f", keystrokeAnomalyScore) + 
-                    " | Risk Score: " + String.format("%.2f", riskScore));
+
+            if (isCollectingBaseline) {
+                handleBackgroundCollection(mse);
             } else {
-                riskScore = Math.max(0, riskScore - RISK_DECAY);
-                Log.d(TAG, "✓ Normal | MSE: " + mse + " | Risk Score: " + String.format("%.2f", riskScore));
-            }
-            
-            // Lock account if risk exceeds threshold
-            if (riskScore >= RISK_THRESHOLD) {
-                Log.e(TAG, "🔴 RISK THRESHOLD EXCEEDED! Locking account...");
-                triggerAlert();
-                riskScore = 0;  // Reset for next potential threat
+                handleMonitoring(mse);
             }
             
             inputTensor.close();
@@ -184,62 +187,195 @@ public class SensorService extends Service implements SensorEventListener, TextT
         }
     }
 
-    private void triggerAlert() {
-        // 1. Vibrate
-        if (vibrator != null && vibrator.hasVibrator()) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(2000, VibrationEffect.DEFAULT_AMPLITUDE));
-            } else {
-                vibrator.vibrate(2000);
-            }
-        }
+    /**
+     * Phase 1: Quietly collect data while user interacts with the app
+     */
+    private void handleBackgroundCollection(double mse) {
+        collectionMSEs.add(mse);
+        int keystrokeCount = keystrokeTracker.getKeystrokeCount();
+        Log.d(TAG, String.format("Learning... Motion: %d/%d | Taps: %d/20", 
+            collectionMSEs.size(), REQUIRED_MSE_SAMPLES, keystrokeCount));
 
-        // 2. Background Voice Alert
-        if (isTtsReady && tts != null) {
-            tts.speak("Warning. Intrusion behavior detected.", TextToSpeech.QUEUE_FLUSH, null, "BackgroundAlert");
+        // Once we have enough data (motion samples + at least 20 keystrokes)
+        if (collectionMSEs.size() >= REQUIRED_MSE_SAMPLES && keystrokeTracker.hasEnoughData()) {
+            double meanMSE = collectionMSEs.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+            double mseStdDev = computeStdDev(collectionMSEs, meanMSE);
+            
+            behaviorBaseline.setBaseline(keystrokeTracker, meanMSE, mseStdDev);
+            isCollectingBaseline = false;
+            Log.i(TAG, "🎉 Background Learning Complete! Protection is now ACTIVE.");
         }
-
-        // 3. Launch Alert Screen
-        Intent intent = new Intent(this, AnomalyActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-        startActivity(intent);
-        
-        // 4. Send email notification (using Intent to open email)
-        sendEmailNotification();
-        
-        Log.w(TAG, "🚨 SECURITY ALERT TRIGGERED!");
     }
 
     /**
-     * Send email notification to user when suspicious activity detected
+     * Phase 2: Actively monitor for intruders and adapt
+     */
+    private void handleMonitoring(double mse) {
+        double motionThreshold = behaviorBaseline.getMotionThreshold();
+        boolean isMotionAnomaly = mse > motionThreshold;
+        
+        // Calculate keystroke anomaly score
+        double keystrokeAnomalyScore = keystrokeTracker.hasEnoughData() ? 
+            behaviorBaseline.calculateKeystrokeAnomalyScore(keystrokeTracker) : 0;
+        
+        // Update risk score
+        if (isMotionAnomaly || keystrokeAnomalyScore > 0.5) {
+            riskScore += RISK_INCREMENT;
+            Log.w(TAG, "⚠️ Anomaly detected! Total Risk: " + String.format("%.2f", riskScore));
+            
+            // Tiered Response Logic
+            if (riskScore >= RISK_CRITICAL) {
+                sendEmailNotification(); // Send critical alert email
+                lockSystem();
+            } else if (riskScore >= RISK_WARNING && !warningSent) {
+                sendEmailNotification(); // Send warning email
+                warnUser();
+            }
+        } else {
+            riskScore = Math.max(0, riskScore - RISK_DECAY);
+            
+            // Adaptive Learning: Slightly update baseline if behavior is normal
+            if (keystrokeTracker.hasEnoughData()) {
+                behaviorBaseline.updateBaseline(keystrokeTracker, mse, 0.005);
+                Log.d(TAG, "✓ Normal | MSE: " + String.format("%.4f", mse) + " | Baseline Adapted/Fixed");
+            } else {
+                Log.d(TAG, "✓ Normal | MSE: " + String.format("%.4f", mse) + " | Waiting for more keystrokes to adapt...");
+            }
+        }
+    }
+
+    private double computeStdDev(List<Double> values, double mean) {
+        if (values.size() < 2) return 0;
+        double variance = values.stream()
+                .mapToDouble(v -> Math.pow(v - mean, 2))
+                .average().orElse(0);
+        return Math.sqrt(variance);
+    }
+
+    /**
+     * Tier 1: Warn User (Risk 2.0)
+     */
+    private void warnUser() {
+        warningSent = true;
+        Log.w(TAG, "🔔 Tier 1: Warning User...");
+
+        // 1. Vibrate briefly
+        if (vibrator != null && vibrator.hasVibrator()) {
+            vibrator.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE));
+        }
+
+        // 2. Voice Alert
+        if (isTtsReady && tts != null) {
+            tts.speak("Warning. Unusual behavior detected. Please verify your identity.", TextToSpeech.QUEUE_FLUSH, null, "WarningAlert");
+        }
+
+        // 3. Launch Alert Screen (Warning Mode)
+        Intent intent = new Intent(this, AnomalyActivity.class);
+        intent.putExtra("hard_lock", false);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        startActivity(intent);
+
+        // 4. Send Background Email (Network Call)
+        sendEmailNotification();
+    }
+
+    /**
+     * Tier 2: Lock System (Risk 3.0)
+     */
+    private void lockSystem() {
+        if (isLocked) return;
+        isLocked = true;
+        Log.e(TAG, "🚨 Tier 2: CRITICAL RISK - LOCKING SYSTEM");
+
+        // 1. Heavy Vibration
+        if (vibrator != null) {
+            vibrator.vibrate(VibrationEffect.createWaveform(new long[]{0, 500, 200, 500}, -1));
+        }
+
+        // 2. Launch Alert/Lock Screen (Hard Lock Mode)
+        Intent intent = new Intent(this, AnomalyActivity.class);
+        intent.putExtra("hard_lock", true);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        startActivity(intent);
+        
+        // 3. Force Logout & Increment Strikes (User-Specific)
+        SharedPreferences prefs = getSharedPreferences("AuthSensePrefs", Context.MODE_PRIVATE);
+        String strikeKey = "strikes_" + currentUserEmail;
+        String blockKey = "blocked_" + currentUserEmail;
+        
+        int strikes = prefs.getInt(strikeKey, 0) + 1;
+        
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putBoolean("is_logged_in", false);
+        editor.putInt(strikeKey, strikes);
+        
+        if (strikes >= 3) {
+            Log.e(TAG, "🚫 ACCOUNT PERMANENTLY BLOCKED: " + currentUserEmail);
+            editor.putBoolean(blockKey, true);
+        }
+        editor.apply();
+        
+        // 4. Stop service
+        stopSelf();
+    }
+
+    /**
+     * Send email automatically in the background using JavaMail
      */
     private void sendEmailNotification() {
-        try {
-            String userEmail = currentUserEmail;
-            String subject = "🚨 Suspicious Activity Detected on Your Account";
-            String body = "Hello,\n\n" +
-                "We detected unusual activity on your AuthSense Bank account at " + 
-                new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date()) + ".\n\n" +
-                "Your account has been temporarily locked for security.\n\n" +
-                "If this was you, please ignore this message. Otherwise, change your password immediately.\n\n" +
-                "Stay secure!\nAuthSense Bank Security Team";
+        // ⚠️ MANDATORY: CHANGE THESE TWO LINES
+        final String senderEmail = "your-email@gmail.com"; 
+        final String senderPassword = "your-app-password"; 
 
-            Intent emailIntent = new Intent(Intent.ACTION_SEND);
-            emailIntent.setType("message/rfc822");
-            emailIntent.putExtra(Intent.EXTRA_EMAIL, new String[]{userEmail});
-            emailIntent.putExtra(Intent.EXTRA_SUBJECT, subject);
-            emailIntent.putExtra(Intent.EXTRA_TEXT, body);
-            emailIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
-            // Try to open email client (may not work in background)
-            // Better: Use a backend API to send email
-            Log.i(TAG, "📧 Email notification prepared for: " + userEmail);
-            
-            // Uncomment if you have email integration
-            // startActivity(Intent.createChooser(emailIntent, "Send Email"));
-        } catch (Exception e) {
-            Log.e(TAG, "Error preparing email notification", e);
+        if (senderEmail.equals("your-email@gmail.com")) {
+            Log.e(TAG, "❌ EMAIL NOT SENT: You haven't configured senderEmail in SensorService.java");
+            return;
         }
+
+        new Thread(() -> {
+            try {
+                Log.i(TAG, "📧 Attempting background email to: " + currentUserEmail);
+
+                // SMTP Properties
+                Properties props = new Properties();
+                props.put("mail.smtp.auth", "true");
+                props.put("mail.smtp.starttls.enable", "true");
+                props.put("mail.smtp.host", "smtp.gmail.com");
+                props.put("mail.smtp.port", "587");
+
+                // Create Session
+                Session session = Session.getInstance(props, new Authenticator() {
+                    @Override
+                    protected PasswordAuthentication getPasswordAuthentication() {
+                        return new PasswordAuthentication(senderEmail, senderPassword);
+                    }
+                });
+
+                // Create Message
+                Message message = new MimeMessage(session);
+                message.setFrom(new InternetAddress(senderEmail));
+                message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(currentUserEmail));
+                message.setSubject("🚨 Security Alert: Suspicious Activity Detected");
+                
+                String time = new java.text.SimpleDateFormat("HH:mm:ss", Locale.US).format(new java.util.Date());
+                String body = "Hello,\n\nUnusual behavior was detected on your AuthSense Bank account. " +
+                        "As a precaution, the system has been locked.\n\n" +
+                        "Event Time: " + time + "\n" +
+                        "User ID: " + currentUserEmail + "\n\n" +
+                        "If this was not you, please contact support immediately.";
+                
+                message.setText(body);
+
+                // Send Email
+                Transport.send(message);
+                Log.i(TAG, "✅ BACKGROUND EMAIL SENT SUCCESSFULLY to " + currentUserEmail);
+
+            } catch (MessagingException e) {
+                Log.e(TAG, "❌ SMTP Error: Failed to send background email. Check credentials/network.", e);
+            } catch (Exception e) {
+                Log.e(TAG, "❌ General Error in background email", e);
+            }
+        }).start();
     }
 
     private double calculateMSE(float[][] original, float[][] reconstructed) {
