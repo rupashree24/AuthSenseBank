@@ -27,6 +27,7 @@
             app:tint="#FF4B4B" />
 
         <TextView
+            android:id="@+id/tv_anomaly_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
@@ -36,6 +37,7 @@
             android:textSize="24sp" />
 
         <TextView
+            android:id="@+id/tv_anomaly_desc"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"

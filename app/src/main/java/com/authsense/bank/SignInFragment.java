@@ -23,12 +23,10 @@ public class SignInFragment extends Fragment {
         EditText etEmail = view.findViewById(R.id.et_customer_id);
         EditText etPass = view.findViewById(R.id.et_password);
         TextView btnSignIn = view.findViewById(R.id.btn_signin);
-        TextView tvGoSignUp = view.findViewById(R.id.tv_go_signup);
 
         btnSignIn.setOnClickListener(v -> {
-            String inputEmail = etEmail.getText().toString().trim();
+            String inputEmail = etEmail.getText().toString().trim().toLowerCase();
             String inputPass = etPass.getText().toString().trim();
-            Log.d(TAG, "Sign-in attempt for: " + inputEmail);
 
             if (inputEmail.isEmpty() || inputPass.isEmpty()) {
                 Toast.makeText(getContext(), "Please fill in all fields", Toast.LENGTH_SHORT).show();
@@ -37,37 +35,33 @@ public class SignInFragment extends Fragment {
 
             SharedPreferences prefs = getActivity().getSharedPreferences("AuthSensePrefs", Context.MODE_PRIVATE);
             
-            // CHECK FOR USER-SPECIFIC PERMANENT BLOCK
+            // MULTI-USER CHECK: Get password specifically for this email
+            String savedPass = prefs.getString("pass_" + inputEmail, "");
             String blockKey = "blocked_" + inputEmail;
+
             if (prefs.getBoolean(blockKey, false)) {
-                Log.e(TAG, "🚫 LOGIN BLOCKED: Account " + inputEmail + " is permanently disabled.");
-                Toast.makeText(getContext(), "ACCOUNT PERMANENTLY BLOCKED. Contact bank support.", Toast.LENGTH_LONG).show();
+                Toast.makeText(getContext(), "ACCOUNT BLOCKED. Contact support.", Toast.LENGTH_LONG).show();
                 return;
             }
 
-            String savedEmail = prefs.getString("user_email", "");
-            String savedPass = prefs.getString("user_password", "");
-
-            if (inputEmail.equals(savedEmail) && inputPass.equals(savedPass)) {
-                Log.i(TAG, "✅ Sign-in Successful!");
+            if (!savedPass.isEmpty() && inputPass.equals(savedPass)) {
+                Log.i(TAG, "✅ Login Success: " + inputEmail);
                 
-                // Mark as logged in
-                prefs.edit().putBoolean("is_logged_in", true).apply();
+                SharedPreferences.Editor editor = prefs.edit();
+                editor.putBoolean("is_logged_in", true);
+                editor.putString("user_email", inputEmail); // MARK THIS AS THE ACTIVE USER
+                editor.apply();
 
-                // Go directly to MainActivity - SensorService will handle background learning
                 Intent intent = new Intent(getActivity(), MainActivity.class);
                 intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 startActivity(intent);
             } else {
-                Log.w(TAG, "❌ Invalid credentials. Expected: " + savedEmail);
-                Toast.makeText(getContext(), "Invalid Email or Password", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), "Invalid Credentials", Toast.LENGTH_SHORT).show();
             }
         });
 
-        tvGoSignUp.setOnClickListener(v -> {
-            if (getActivity() instanceof AuthActivity) {
-                ((AuthActivity) getActivity()).switchToSignUp();
-            }
+        view.findViewById(R.id.tv_go_signup).setOnClickListener(v -> {
+            if (getActivity() instanceof AuthActivity) ((AuthActivity) getActivity()).switchToSignUp();
         });
 
         return view;

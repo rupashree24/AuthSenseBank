@@ -26,18 +26,19 @@ public class MainActivity extends AppCompatActivity {
         boolean isLoggedIn = prefs.getBoolean("is_logged_in", false);
 
         if (!isLoggedIn) {
-            // Redirect to AuthActivity if not logged in
             startActivity(new Intent(this, AuthActivity.class));
             finish();
             return;
         }
 
+        // Display User Email in Profile section
+        String userEmail = prefs.getString("user_email", "Guest");
+        TextView tvProfile = findViewById(R.id.tv_user_profile);
+        tvProfile.setText(userEmail);
+
         Log.i(TAG, "🏠 MainActivity Started - Starting Security Service");
         
-        // Start the sensor monitoring service immediately on Main Activity start
         startService(new Intent(this, SensorService.class));
-
-        // Initialize the ModelManager
         modelManager = new ModelManager(this);
         
         loadFragment(new HomeFragment());
@@ -61,14 +62,16 @@ public class MainActivity extends AppCompatActivity {
             return true;
         });
 
-        findViewById(R.id.btn_contact).setOnClickListener(v ->
-                Toast.makeText(this, "Contact: 1800-AUTH-BANK", Toast.LENGTH_SHORT).show());
-
-        findViewById(R.id.btn_signup).setOnClickListener(v -> {
+        findViewById(R.id.btn_logout).setOnClickListener(v -> {
             // Logout logic
             prefs.edit().putBoolean("is_logged_in", false).apply();
             stopService(new Intent(this, SensorService.class));
-            startActivity(new Intent(this, AuthActivity.class));
+            
+            Toast.makeText(this, "Logged out successfully", Toast.LENGTH_SHORT).show();
+            
+            Intent intent = new Intent(this, AuthActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
             finish();
         });
     }
@@ -76,42 +79,28 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Reactive Lock: If background service locked the app, kick user out
         SharedPreferences prefs = getSharedPreferences("AuthSensePrefs", Context.MODE_PRIVATE);
         if (!prefs.getBoolean("is_logged_in", false)) {
-            Log.e(TAG, "🔒 SYSTEM LOCKED - Redirecting to Login");
             startActivity(new Intent(this, AuthActivity.class));
             finish();
         }
     }
 
-    /**
-     * Capture touch events to track keystroke/swipe patterns
-     */
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
-        // Only record the initial touch (ACTION_DOWN) as a keystroke
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            Log.d(TAG, "Touch detected at: " + event.getX() + ", " + event.getY());
             recordKeystrokeEvent(event.getPressure());
         }
         return super.dispatchTouchEvent(event);
     }
 
-    /**
-     * Record keystroke/touch event (sends to service)
-     */
     private void recordKeystrokeEvent(float pressure) {
         long currentTime = System.currentTimeMillis();
-        
-        // Send explicit broadcast to SensorService
         Intent intent = new Intent("com.authsense.bank.KEYSTROKE_EVENT");
-        intent.setPackage(getPackageName()); // CRITICAL: Makes the broadcast explicit
+        intent.setPackage(getPackageName());
         intent.putExtra("pressure", pressure);
         intent.putExtra("timestamp", currentTime);
-        
         sendBroadcast(intent);
-        Log.d(TAG, "Broadcast sent for tap");
     }
 
     private void loadFragment(Fragment fragment) {
@@ -127,9 +116,7 @@ public class MainActivity extends AppCompatActivity {
         if (modelManager != null) {
             try {
                 modelManager.close();
-            } catch (Exception e) {
-                Log.e(TAG, "Error closing ModelManager", e);
-            }
+            } catch (Exception e) {}
         }
     }
 }

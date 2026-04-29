@@ -4,10 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
 import org.json.JSONObject;
+import java.util.Locale;
 
-/**
- * Manages per-user behavioral baseline (keystroke + motion patterns)
- */
 public class BehaviorBaseline {
     private static final String TAG = "BehaviorBaseline";
     private static final String PREFS_NAME = "BehaviorBaseline";
@@ -16,11 +14,8 @@ public class BehaviorBaseline {
     private double meanKeystrokeInterval;
     private double keystrokeIntervalStdDev;
     private double meanPressure;
-    private double pressureRange;
-    private double meanSwipeVelocity;
     private double baselineMSE;
     private double mseStdDev;
-    private long baselineTimestamp;
     private boolean isBaselineComplete;
 
     private SharedPreferences prefs;
@@ -31,137 +26,79 @@ public class BehaviorBaseline {
         loadFromPrefs();
     }
 
-    /**
-     * Save baseline from keystroke tracker and motion data
-     */
-    public void setBaseline(KeystrokeTracker keystrokeTracker, double mse, double mseStdDev) {
-        this.meanKeystrokeInterval = keystrokeTracker.getMeanKeystrokeInterval();
-        this.keystrokeIntervalStdDev = keystrokeTracker.getKeystrokeIntervalStdDev();
-        this.meanPressure = keystrokeTracker.getMeanPressure();
-        this.pressureRange = keystrokeTracker.getPressureRange();
-        this.meanSwipeVelocity = keystrokeTracker.getMeanSwipeVelocity();
+    public void setBaseline(KeystrokeTracker tracker, double mse, double mseDev) {
+        this.meanKeystrokeInterval = tracker.getMeanKeystrokeInterval();
+        this.keystrokeIntervalStdDev = tracker.getKeystrokeIntervalStdDev();
+        this.meanPressure = tracker.getMeanPressure();
         this.baselineMSE = mse;
-        this.mseStdDev = mseStdDev;
-        this.baselineTimestamp = System.currentTimeMillis();
+        this.mseStdDev = mseDev;
         this.isBaselineComplete = true;
-
         saveToPrefs();
-        Log.i(TAG, "Baseline set for user: " + userEmail + " | " + this);
+        Log.i(TAG, "🎯 FINAL BASELINE ESTABLISHED: " + toString());
     }
 
-    /**
-     * Calculate keystroke anomaly score (0-1, where 1 is most anomalous)
-     */
-    public double calculateKeystrokeAnomalyScore(KeystrokeTracker currentTracker) {
+    public double calculateKeystrokeAnomalyScore(KeystrokeTracker current) {
         if (!isBaselineComplete) return 0;
-
-        double intervalDeviation = Math.abs(
-            currentTracker.getMeanKeystrokeInterval() - this.meanKeystrokeInterval
-        ) / (this.keystrokeIntervalStdDev + 1);  // +1 to avoid division by zero
-
-        double pressureDeviation = Math.abs(
-            currentTracker.getMeanPressure() - this.meanPressure
-        ) / (this.pressureRange + 0.1);
-
-        double velocityDeviation = Math.abs(
-            currentTracker.getMeanSwipeVelocity() - this.meanSwipeVelocity
-        ) / (this.meanSwipeVelocity + 1);
-
-        // Weighted average (keystroke interval is most important)
-        double anomalyScore = (intervalDeviation * 0.5 + pressureDeviation * 0.3 + velocityDeviation * 0.2);
         
-        // Normalize to 0-1 range
-        return Math.min(1.0, anomalyScore / 3.0);
+        // Speed check
+        double diff = Math.abs(current.getMeanKeystrokeInterval() - this.meanKeystrokeInterval);
+        // Sensitive normalization: Score of 1.0 means you are typing roughly 2x faster/slower than base
+        double speedScore = diff / (this.keystrokeIntervalStdDev + 15);
+        
+        // Pressure check
+        double pressScore = Math.abs(current.getMeanPressure() - this.meanPressure) / 0.1;
+        
+        double total = (speedScore * 0.8) + (pressScore * 0.2);
+        return Math.min(1.0, total / 1.2); // Cap at 1.0, trigger point is usually 0.5+
     }
 
-    /**
-     * Calculate motion anomaly threshold (based on baseline MSE)
-     */
     public double getMotionThreshold() {
-        return baselineMSE + (2 * mseStdDev);
+        // Reduced to 2.0x for much higher sensitivity to tilts
+        return baselineMSE + (2.0 * mseStdDev);
     }
 
-    /**
-     * Adapt the baseline to normal behavior over time (Adaptive Learning)
-     */
-    public void updateBaseline(KeystrokeTracker currentTracker, double currentMSE, double alpha) {
+    public void updateBaseline(KeystrokeTracker current, double mse, double alpha) {
         if (!isBaselineComplete) return;
-
-        // Exponential Moving Average to slowly adapt to user changes
-        this.meanKeystrokeInterval = (alpha * currentTracker.getMeanKeystrokeInterval()) + (1 - alpha) * this.meanKeystrokeInterval;
-        this.keystrokeIntervalStdDev = (alpha * currentTracker.getKeystrokeIntervalStdDev()) + (1 - alpha) * this.keystrokeIntervalStdDev;
-        this.meanPressure = (alpha * currentTracker.getMeanPressure()) + (1 - alpha) * this.meanPressure;
-        this.pressureRange = (alpha * currentTracker.getPressureRange()) + (1 - alpha) * this.pressureRange;
-        this.meanSwipeVelocity = (alpha * currentTracker.getMeanSwipeVelocity()) + (1 - alpha) * this.meanSwipeVelocity;
-        
-        this.baselineMSE = (alpha * currentMSE) + (1 - alpha) * this.baselineMSE;
-        
+        // Slow adaptive learning (0.5% weight to new data)
+        this.meanKeystrokeInterval = (alpha * current.getMeanKeystrokeInterval()) + (1 - alpha) * this.meanKeystrokeInterval;
+        if (mse < getMotionThreshold() * 1.1) {
+            this.baselineMSE = (alpha * mse) + (1 - alpha) * this.baselineMSE;
+        }
         saveToPrefs();
-        Log.d(TAG, "Baseline adapted for user: " + userEmail);
     }
 
-    /**
-     * Save baseline to SharedPreferences
-     */
     private void saveToPrefs() {
         try {
-            String key = "baseline_" + userEmail;
             JSONObject json = new JSONObject();
-            json.put("meanKeystrokeInterval", meanKeystrokeInterval);
-            json.put("keystrokeIntervalStdDev", keystrokeIntervalStdDev);
-            json.put("meanPressure", meanPressure);
-            json.put("pressureRange", pressureRange);
-            json.put("meanSwipeVelocity", meanSwipeVelocity);
-            json.put("baselineMSE", baselineMSE);
-            json.put("mseStdDev", mseStdDev);
-            json.put("baselineTimestamp", baselineTimestamp);
-            json.put("isBaselineComplete", isBaselineComplete);
-
-            prefs.edit().putString(key, json.toString()).apply();
-            Log.d(TAG, "Baseline saved to SharedPreferences for: " + userEmail);
-        } catch (Exception e) {
-            Log.e(TAG, "Error saving baseline", e);
-        }
+            json.put("int", meanKeystrokeInterval);
+            json.put("dev", keystrokeIntervalStdDev);
+            json.put("press", meanPressure);
+            json.put("mse", baselineMSE);
+            json.put("mseDev", mseStdDev);
+            json.put("complete", isBaselineComplete);
+            prefs.edit().putString("baseline_" + userEmail, json.toString()).apply();
+        } catch (Exception e) {}
     }
 
-    /**
-     * Load baseline from SharedPreferences
-     */
     private void loadFromPrefs() {
         try {
-            String key = "baseline_" + userEmail;
-            String json = prefs.getString(key, null);
+            String json = prefs.getString("baseline_" + userEmail, null);
             if (json != null) {
                 JSONObject obj = new JSONObject(json);
-                this.meanKeystrokeInterval = obj.getDouble("meanKeystrokeInterval");
-                this.keystrokeIntervalStdDev = obj.getDouble("keystrokeIntervalStdDev");
-                this.meanPressure = obj.getDouble("meanPressure");
-                this.pressureRange = obj.getDouble("pressureRange");
-                this.meanSwipeVelocity = obj.getDouble("meanSwipeVelocity");
-                this.baselineMSE = obj.getDouble("baselineMSE");
-                this.mseStdDev = obj.getDouble("mseStdDev");
-                this.baselineTimestamp = obj.getLong("baselineTimestamp");
-                this.isBaselineComplete = obj.getBoolean("isBaselineComplete");
-                Log.d(TAG, "Baseline loaded from SharedPreferences for: " + userEmail);
+                this.meanKeystrokeInterval = obj.getDouble("int");
+                this.keystrokeIntervalStdDev = obj.getDouble("dev");
+                this.meanPressure = obj.getDouble("press");
+                this.baselineMSE = obj.getDouble("mse");
+                this.mseStdDev = obj.getDouble("mseDev");
+                this.isBaselineComplete = obj.getBoolean("complete");
             }
-        } catch (Exception e) {
-            Log.e(TAG, "Error loading baseline", e);
-            isBaselineComplete = false;
-        }
+        } catch (Exception e) { isBaselineComplete = false; }
     }
 
-    public boolean isBaselineComplete() {
-        return isBaselineComplete;
-    }
-
+    public boolean isBaselineComplete() { return isBaselineComplete; }
+    
     @Override
     public String toString() {
-        return String.format(
-            "BehaviorBaseline { User: %s, KeystrokeInterval: %.0f±%.0f ms, " +
-            "Pressure: %.2f (range: %.2f), Velocity: %.2f, Motion MSE: %.6f±%.6f, Complete: %s }",
-            userEmail, meanKeystrokeInterval, keystrokeIntervalStdDev,
-            meanPressure, pressureRange, meanSwipeVelocity,
-            baselineMSE, mseStdDev, isBaselineComplete
-        );
+        return String.format(Locale.US, "Base: Speed=%.0fms, MSE=%.6f", meanKeystrokeInterval, baselineMSE);
     }
 }
