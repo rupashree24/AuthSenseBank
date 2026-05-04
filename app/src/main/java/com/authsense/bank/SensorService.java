@@ -50,7 +50,6 @@ public class SensorService extends Service implements SensorEventListener, TextT
     
     private float[] lastAccel = new float[3];
     private float[] lastGyro = new float[3];
-    private int sensorEventCount = 0;
     
     private List<float[]> dataBuffer = new ArrayList<>();
     private final int WINDOW_SIZE = 300;
@@ -59,10 +58,11 @@ public class SensorService extends Service implements SensorEventListener, TextT
     private double riskScore = 0;
     private boolean isLocked = false;
     private boolean warningSent = false;
+
     private static final double RISK_WARNING = 2.0;    
     private static final double RISK_CRITICAL = 5.0;   
     private static final double RISK_INCREMENT = 1.0;
-    private static final double RISK_DECAY = 0.1;
+    private static final double RISK_DECAY = 0.2;
 
     private int criticalAnomalyCount = 0;
     private static final int MAX_CRITICAL_ATTEMPTS = 3;
@@ -73,6 +73,7 @@ public class SensorService extends Service implements SensorEventListener, TextT
     
     private boolean isCollectingBaseline = false;
     private List<Double> collectionMSEs = new ArrayList<>();
+    private List<Double> collectionKeyScores = new ArrayList<>();
     private long learningStartTime = 0;
     private static final long LEARNING_DURATION_MS = 300_000; // 5 MINUTES
     
@@ -85,7 +86,6 @@ public class SensorService extends Service implements SensorEventListener, TextT
                 float pressure = intent.getFloatExtra("pressure", 0.5f);
                 if (pressure == 0) pressure = 0.5f;
                 keystrokeTracker.recordKeystroke(pressure);
-                Log.d(TAG, "👆 Keystroke received. Count: " + keystrokeTracker.getKeystrokeCount());
             }
         }
     };
@@ -93,52 +93,30 @@ public class SensorService extends Service implements SensorEventListener, TextT
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.i(TAG, "🟢 STEP 1: Sensor Service Created");
-        
         SharedPreferences prefs = getSharedPreferences("AuthSensePrefs", Context.MODE_PRIVATE);
         currentUserEmail = prefs.getString("user_email", "unknown_user");
-        Log.d(TAG, "🟢 STEP 2: Current User: " + currentUserEmail);
 
         try {
-            Log.d(TAG, "🟢 STEP 3: Loading AI Model...");
             modelManager = new ModelManager(this);
-            Log.d(TAG, "🟢 STEP 4: Model Loaded successfully");
         } catch (Exception e) {
-            Log.e(TAG, "❌ STEP 3 FAILED: Model error: " + e.getMessage());
+            Log.e(TAG, "❌ Model error: " + e.getMessage());
         }
 
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        
-        Log.d(TAG, "🟢 STEP 5: Initializing Voice Engine...");
         tts = new TextToSpeech(this, this);
-        
         behaviorBaseline = new BehaviorBaseline(this, currentUserEmail);
         keystrokeTracker = new KeystrokeTracker();
         
         if (!behaviorBaseline.isBaselineComplete()) {
             isCollectingBaseline = true;
             learningStartTime = System.currentTimeMillis();
-            Log.w(TAG, "📝 MODE: LEARNING started. Need 5 mins of data.");
             mainHandler.post(() -> Toast.makeText(this, "Learning: 5-minute countdown started.", Toast.LENGTH_LONG).show());
-        } else {
-            isCollectingBaseline = false;
-            Log.i(TAG, "🛡️ MODE: MONITORING active.");
         }
         
         Sensor accel = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         Sensor gyro = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
-        
-        if (accel != null) {
-            sensorManager.registerListener(this, accel, 100_000);
-            Log.d(TAG, "🟢 STEP 6: Accelerometer Registered");
-        } else {
-            Log.e(TAG, "❌ STEP 6 FAILED: No Accelerometer!");
-        }
-
-        if (gyro != null) {
-            sensorManager.registerListener(this, gyro, 100_000);
-            Log.d(TAG, "🟢 STEP 7: Gyroscope Registered");
-        }
+        if (accel != null) sensorManager.registerListener(this, accel, 100_000);
+        if (gyro != null) sensorManager.registerListener(this, gyro, 100_000);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             VibratorManager vm = (VibratorManager) getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
@@ -153,7 +131,6 @@ public class SensorService extends Service implements SensorEventListener, TextT
         } else {
             registerReceiver(keystrokeReceiver, filter);
         }
-        Log.i(TAG, "🟢 STEP 8: Initialization Complete. Sensors listening...");
     }
 
     @Override
@@ -161,20 +138,11 @@ public class SensorService extends Service implements SensorEventListener, TextT
         if (status == TextToSpeech.SUCCESS) {
             tts.setLanguage(Locale.US);
             isTtsReady = true;
-            Log.d(TAG, "✅ Voice engine ready");
-        } else {
-            Log.e(TAG, "❌ Voice engine failed to init!");
         }
     }
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        sensorEventCount++;
-        // Print hardware heartbeat every 100 events
-        if (sensorEventCount % 100 == 0) {
-            Log.v(TAG, "📡 Hardware Pulse: Received 100 events. Current Sensor: " + event.sensor.getType());
-        }
-
         if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
             lastAccel = event.values.clone();
             float[] sample = new float[NUM_FEATURES];
@@ -188,26 +156,14 @@ public class SensorService extends Service implements SensorEventListener, TextT
 
     private void addDataPoint(float[] sample) {
         dataBuffer.add(sample);
-        
-        // Show progress while filling initial buffer
-        if (dataBuffer.size() < WINDOW_SIZE && dataBuffer.size() % 50 == 0) {
-            Log.d(TAG, "📥 Filling AI Buffer: " + dataBuffer.size() + "/" + WINDOW_SIZE + " samples...");
-        }
-
         if (dataBuffer.size() >= WINDOW_SIZE) {
             runInference();
-            // Slide window by 5 seconds
             for(int i=0; i<50; i++) if(!dataBuffer.isEmpty()) dataBuffer.remove(0);
         }
     }
 
     private void runInference() {
-        if (modelManager == null || modelManager.getSession() == null || isLocked) {
-            if (modelManager != null && modelManager.getSession() == null) {
-                Log.e(TAG, "⚠️ Inference skipped: OrtSession is NULL");
-            }
-            return;
-        }
+        if (modelManager == null || modelManager.getSession() == null || isLocked) return;
         try {
             float[][][] inputData = new float[1][WINDOW_SIZE][NUM_FEATURES];
             for (int i = 0; i < WINDOW_SIZE; i++) inputData[0][i] = dataBuffer.get(i);
@@ -230,34 +186,49 @@ public class SensorService extends Service implements SensorEventListener, TextT
         long elapsed = System.currentTimeMillis() - learningStartTime;
         long remaining = (LEARNING_DURATION_MS - elapsed) / 1000;
         collectionMSEs.add(mse);
+        
+        if (keystrokeTracker.hasEnoughData()) {
+            double currentRaw = (keystrokeTracker.getMeanKeystrokeInterval() * 0.7) + (keystrokeTracker.getMeanPressure() * 100 * 0.3);
+            collectionKeyScores.add(currentRaw);
+        }
+
         Log.i(TAG, String.format(Locale.US, "⏳ Learning: %ds left | MSE: %.4f", Math.max(0, remaining), mse));
 
         if (elapsed >= LEARNING_DURATION_MS && keystrokeTracker.hasEnoughData()) {
             double meanMSE = collectionMSEs.stream().mapToDouble(Double::doubleValue).average().orElse(0);
             double mseStdDev = computeStdDev(collectionMSEs, meanMSE);
-            behaviorBaseline.setBaseline(keystrokeTracker, meanMSE, mseStdDev);
+            
+            double meanKeyRaw = collectionKeyScores.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+            List<Double> keyErrors = new ArrayList<>();
+            for (Double score : collectionKeyScores) keyErrors.add(Math.abs(score - meanKeyRaw));
+            double meanKeyError = keyErrors.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+            double keyErrorStdDev = computeStdDev(keyErrors, meanKeyError);
+
+            behaviorBaseline.setBaseline(keystrokeTracker, meanMSE, mseStdDev, meanKeyRaw, meanKeyError, keyErrorStdDev);
             isCollectingBaseline = false;
-            Log.i(TAG, "🎉 Learning Complete!");
-            mainHandler.post(() -> Toast.makeText(this, "🎉 Profile Created! Monitoring Active.", Toast.LENGTH_LONG).show());
+            mainHandler.post(() -> Toast.makeText(this, "🎉 Profile Created!", Toast.LENGTH_LONG).show());
         }
     }
 
     private void handleMonitoring(double mse) {
         double motionThreshold = behaviorBaseline.getMotionThreshold();
         boolean isMotionAnomaly = mse > motionThreshold;
-        double keystrokeScore = behaviorBaseline.calculateKeystrokeAnomalyScore(keystrokeTracker);
         
-        Log.d(TAG, String.format(Locale.US, "🛡️ Risk: %.1f | MSE: %.4f (Th: %.4f) | Key: %.2f", riskScore, mse, motionThreshold, keystrokeScore));
+        double keyDeviation = behaviorBaseline.calculateKeystrokeAnomalyScore(keystrokeTracker);
+        double keyThreshold = behaviorBaseline.getKeystrokeThreshold();
+        boolean isKeystrokeAnomaly = keystrokeTracker.hasEnoughData() && (keyDeviation > keyThreshold);
+        
+        Log.d(TAG, String.format(Locale.US, "🛡️ Risk: %.1f | MSE: %.4f (Th: %.4f) | Key: %.1f (Th: %.1f)", 
+            riskScore, mse, motionThreshold, keyDeviation, keyThreshold));
 
-        if (isMotionAnomaly || keystrokeScore > 0.5) {
+        if (isMotionAnomaly || isKeystrokeAnomaly) {
             riskScore += RISK_INCREMENT;
+            
             if (riskScore >= RISK_WARNING && !warningSent) {
-                sendEmailAlert("SECURITY WARNING", "Suspicious activity detected on your account.");
                 warnUser(false);
             }
             if (riskScore >= RISK_CRITICAL) {
                 criticalAnomalyCount++;
-                sendEmailAlert("URGENT: ACCOUNT LOCKED", "Persistent suspicious behavior. Account locked for safety.");
                 if (criticalAnomalyCount >= MAX_CRITICAL_ATTEMPTS) {
                     lockSystem();
                 } else {
@@ -268,6 +239,8 @@ public class SensorService extends Service implements SensorEventListener, TextT
             }
         } else {
             riskScore = Math.max(0, riskScore - RISK_DECAY);
+            if (riskScore == 0) warningSent = false;
+            
             if (keystrokeTracker.hasEnoughData() && mse < motionThreshold * 1.1) {
                 behaviorBaseline.updateBaseline(keystrokeTracker, mse, 0.005);
             }
@@ -281,7 +254,6 @@ public class SensorService extends Service implements SensorEventListener, TextT
 
         new Thread(() -> {
             try {
-                Log.i(TAG, "📧 Attempting to send alert to: " + currentUserEmail);
                 Properties props = new Properties();
                 props.put("mail.smtp.auth", "true");
                 props.put("mail.smtp.starttls.enable", "true");
@@ -297,11 +269,10 @@ public class SensorService extends Service implements SensorEventListener, TextT
                 Message message = new MimeMessage(session);
                 message.setFrom(new InternetAddress(senderEmail, senderName));
                 message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(currentUserEmail));
-                message.setSubject("🚨 " + senderName + ": " + subject);
+                message.setSubject("🚨 " + subject);
                 message.setText("Hello,\n\n" + body + "\n\nUser ID: " + currentUserEmail + "\nTime: " + new java.util.Date());
-                
                 Transport.send(message);
-                Log.i(TAG, "✅ Email sent successfully to " + currentUserEmail);
+                Log.i(TAG, "📧 Email alert sent: " + subject);
             } catch (Exception e) {
                 Log.e(TAG, "❌ Email Failed: " + e.getMessage());
             }
@@ -316,6 +287,15 @@ public class SensorService extends Service implements SensorEventListener, TextT
 
     private void warnUser(boolean isUrgent) {
         warningSent = true;
+        if (isUrgent) {
+            sendEmailAlert("CRITICAL SECURITY ALERT (Attempt " + criticalAnomalyCount + " of 3)", 
+                "URGENT: Highly suspicious behavior detected. This is your " + criticalAnomalyCount + 
+                " critical warning. One more attempt may lead to an account lock.");
+        } else {
+            sendEmailAlert("SECURITY WARNING", 
+                "Suspicious activity detected on your account. Please use the device normally to avoid further alerts.");
+        }
+
         if (vibrator != null) vibrator.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE));
         if (isTtsReady && tts != null) {
             String text = isUrgent ? "Critical alert. Account monitored." : "Warning. Unusual behavior.";
@@ -332,6 +312,10 @@ public class SensorService extends Service implements SensorEventListener, TextT
     private void lockSystem() {
         if (isLocked) return;
         isLocked = true;
+        
+        sendEmailAlert("URGENT: ACCOUNT PERMANENTLY LOCKED", 
+            "Persistent suspicious behavior detected. For your protection, your account has been permanently locked. Please contact support.");
+
         Log.e(TAG, "🚨 LOCKING SYSTEM");
         if (vibrator != null) vibrator.vibrate(VibrationEffect.createWaveform(new long[]{0, 500, 200, 500}, -1));
         Intent intent = new Intent(this, AnomalyActivity.class);

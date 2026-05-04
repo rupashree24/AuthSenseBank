@@ -11,13 +11,17 @@ public class BehaviorBaseline {
     private static final String PREFS_NAME = "BehaviorBaseline";
 
     private String userEmail;
-    private double meanKeystrokeInterval;
-    private double keystrokeIntervalStdDev;
-    private double meanPressure;
+    
+    // Keystroke Baseline Stats
+    private double meanKeyRaw;      // Your average raw score (speed/pressure combo)
+    private double meanKeyError;    // Your average deviation during training
+    private double keyErrorStdDev;  // Variation of your deviation
+    
+    // Motion Baseline Stats
     private double baselineMSE;
     private double mseStdDev;
+    
     private boolean isBaselineComplete;
-
     private SharedPreferences prefs;
 
     public BehaviorBaseline(Context context, String email) {
@@ -26,41 +30,44 @@ public class BehaviorBaseline {
         loadFromPrefs();
     }
 
-    public void setBaseline(KeystrokeTracker tracker, double mse, double mseDev) {
-        this.meanKeystrokeInterval = tracker.getMeanKeystrokeInterval();
-        this.keystrokeIntervalStdDev = tracker.getKeystrokeIntervalStdDev();
-        this.meanPressure = tracker.getMeanPressure();
+    public void setBaseline(KeystrokeTracker tracker, double mse, double mseDev, 
+                            double keyRaw, double keyErr, double keyErrDev) {
+        this.meanKeyRaw = keyRaw;
+        this.meanKeyError = keyErr;
+        this.keyErrorStdDev = keyErrDev;
+        
         this.baselineMSE = mse;
         this.mseStdDev = mseDev;
+        
         this.isBaselineComplete = true;
         saveToPrefs();
-        Log.i(TAG, "🎯 FINAL BASELINE ESTABLISHED: " + toString());
+        Log.i(TAG, "🎯 DYNAMIC BASELINE ESTABLISHED: " + toString());
     }
 
     public double calculateKeystrokeAnomalyScore(KeystrokeTracker current) {
         if (!isBaselineComplete) return 0;
-        
-        // Speed check
-        double diff = Math.abs(current.getMeanKeystrokeInterval() - this.meanKeystrokeInterval);
-        // Sensitive normalization: Score of 1.0 means you are typing roughly 2x faster/slower than base
-        double speedScore = diff / (this.keystrokeIntervalStdDev + 15);
-        
-        // Pressure check
-        double pressScore = Math.abs(current.getMeanPressure() - this.meanPressure) / 0.1;
-        
-        double total = (speedScore * 0.8) + (pressScore * 0.2);
-        return Math.min(1.0, total / 1.2); // Cap at 1.0, trigger point is usually 0.5+
+        // Current raw score
+        double currentRaw = (current.getMeanKeystrokeInterval() * 0.7) + (current.getMeanPressure() * 100 * 0.3);
+        // Current error (distance from training mean)
+        return Math.abs(currentRaw - meanKeyRaw);
+    }
+
+    public double getKeystrokeThreshold() {
+        // SAME FORMULA AS MSE: Mean Error + 3.0 * StdDev
+        return meanKeyError + (3.0 * keyErrorStdDev);
     }
 
     public double getMotionThreshold() {
-        // Reduced to 2.0x for much higher sensitivity to tilts
-        return baselineMSE + (2.0 * mseStdDev);
+        // Mean MSE + 3.0 * StdDev
+        return baselineMSE + (3.0 * mseStdDev);
     }
 
     public void updateBaseline(KeystrokeTracker current, double mse, double alpha) {
         if (!isBaselineComplete) return;
-        // Slow adaptive learning (0.5% weight to new data)
-        this.meanKeystrokeInterval = (alpha * current.getMeanKeystrokeInterval()) + (1 - alpha) * this.meanKeystrokeInterval;
+        // Slow adaptive learning for the raw mean
+        double currentRaw = (current.getMeanKeystrokeInterval() * 0.7) + (current.getMeanPressure() * 100 * 0.3);
+        this.meanKeyRaw = (alpha * currentRaw) + (1 - alpha) * this.meanKeyRaw;
+        
         if (mse < getMotionThreshold() * 1.1) {
             this.baselineMSE = (alpha * mse) + (1 - alpha) * this.baselineMSE;
         }
@@ -70,9 +77,9 @@ public class BehaviorBaseline {
     private void saveToPrefs() {
         try {
             JSONObject json = new JSONObject();
-            json.put("int", meanKeystrokeInterval);
-            json.put("dev", keystrokeIntervalStdDev);
-            json.put("press", meanPressure);
+            json.put("meanRaw", meanKeyRaw);
+            json.put("meanErr", meanKeyError);
+            json.put("devErr", keyErrorStdDev);
             json.put("mse", baselineMSE);
             json.put("mseDev", mseStdDev);
             json.put("complete", isBaselineComplete);
@@ -85,9 +92,9 @@ public class BehaviorBaseline {
             String json = prefs.getString("baseline_" + userEmail, null);
             if (json != null) {
                 JSONObject obj = new JSONObject(json);
-                this.meanKeystrokeInterval = obj.getDouble("int");
-                this.keystrokeIntervalStdDev = obj.getDouble("dev");
-                this.meanPressure = obj.getDouble("press");
+                this.meanKeyRaw = obj.getDouble("meanRaw");
+                this.meanKeyError = obj.getDouble("meanErr");
+                this.keyErrorStdDev = obj.getDouble("devErr");
                 this.baselineMSE = obj.getDouble("mse");
                 this.mseStdDev = obj.getDouble("mseDev");
                 this.isBaselineComplete = obj.getBoolean("complete");
@@ -99,6 +106,7 @@ public class BehaviorBaseline {
     
     @Override
     public String toString() {
-        return String.format(Locale.US, "Base: Speed=%.0fms, MSE=%.6f", meanKeystrokeInterval, baselineMSE);
+        return String.format(Locale.US, "KeyBase=%.1f, KeyThresh=%.1f, MSEThresh=%.4f", 
+            meanKeyRaw, getKeystrokeThreshold(), getMotionThreshold());
     }
 }

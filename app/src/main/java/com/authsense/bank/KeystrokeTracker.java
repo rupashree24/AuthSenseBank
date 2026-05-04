@@ -61,6 +61,16 @@ public class KeystrokeTracker {
         return pressures.stream().mapToDouble(Float::doubleValue).average().orElse(0);
     }
 
+    public double getPressureStdDev() {
+        if (pressures.size() < 2) return 0;
+        double mean = getMeanPressure();
+        double variance = pressures.stream()
+                .mapToDouble(v -> Math.pow(v - mean, 2))
+                .average()
+                .orElse(0);
+        return Math.sqrt(variance);
+    }
+
     public double getPressureRange() {
         if (pressures.isEmpty()) return 0;
         float min = pressures.stream().min(Float::compareTo).orElse(0f);
