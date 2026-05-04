@@ -14,10 +14,108 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Lending Solutions"
+            android:text="Core Features"
             android:textColor="@color/text_primary"
             android:textSize="24sp"
             android:textStyle="bold" />
+
+        <!-- Feature Card: Instant Transfers -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_instant_transfers"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="@color/divider"
+            android:clickable="true"
+            android:focusable="true">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="20dp"
+                android:background="#E8F5E9">
+                <TextView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:text="⚡"
+                    android:textSize="24sp"
+                    android:gravity="center" />
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:paddingStart="12dp">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Instant Transfers"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Send money anywhere in seconds via UPI and IMPS."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Feature Card: Bank-Grade Security -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="@color/divider">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="20dp"
+                android:background="#E3F2FD">
+                <TextView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:text="🔒"
+                    android:textSize="24sp"
+                    android:gravity="center" />
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:paddingStart="12dp">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Bank-Grade Security"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="256-bit AES encryption with biometric protection."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Lending Solutions"
+            android:textColor="@color/text_primary"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:layout_marginTop="32dp" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -31,88 +129,10 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-<<<<<<< HEAD
-            android:layout_marginTop="28dp"
+            android:layout_marginTop="20dp"
             app:cardElevation="0dp"
             app:strokeWidth="1dp"
             app:strokeColor="@color/divider">
-=======
-            android:text="Core Features"
-            android:textColor="@color/navy_dark"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:fontFamily="serif"
-            android:paddingStart="20dp"
-            android:paddingTop="24dp"
-            android:paddingBottom="12dp" />
-
-        <!-- Feature Card: Instant Transfers -->
-        <androidx.cardview.widget.CardView
-            android:id="@+id/card_instant_transfers"
-            xmlns:app="http://schemas.android.com/apk/res-auto"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="4dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:foreground="?attr/selectableItemBackground">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="20dp"
-                android:background="@color/card_green">
-
-                <TextView
-                    android:layout_width="52dp"
-                    android:layout_height="52dp"
-                    android:text="⚡"
-                    android:textSize="28sp"
-                    android:gravity="center" />
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:paddingStart="12dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Instant Transfers"
-                        android:textColor="@color/white"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Send money anywhere in seconds via UPI, NEFT, and IMPS."
-                        android:textColor="@color/text_grey"
-                        android:textSize="13sp"
-                        android:paddingTop="4dp" />
-                </LinearLayout>
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- Feature Card: Bank-Grade Security -->
-        <androidx.cardview.widget.CardView
-            xmlns:app="http://schemas.android.com/apk/res-auto"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="4dp">
-
->>>>>>> 291f5a8 (Fix threshold formulas, sync motion/keystroke logic, update email alerts, and remove chatbot/notes)
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -121,7 +141,6 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-<<<<<<< HEAD
                     android:text="Personal Loan"
                     android:textColor="@color/text_primary"
                     android:textSize="18sp"
@@ -129,18 +148,10 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Get instant funds for any personal requirement without any collateral. Competitive interest rates starting from 10.5% per annum."
+                    android:text="Get instant funds for any personal requirement. Competitive interest rates starting from 10.5%."
                     android:textColor="@color/text_secondary"
                     android:textSize="14sp"
-                    android:layout_marginTop="8dp"
-                    android:lineSpacingExtra="2dp" />
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Features:\n- Quick processing and disbursal\n- Flexible tenure up to 60 months\n- Minimal documentation"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
-                    android:layout_marginTop="12dp" />
+                    android:layout_marginTop="8dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -167,22 +178,14 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Own your dream home with our affordable home loan schemes. We offer high eligibility and lower EMIs to make home ownership easier."
+                    android:text="Own your dream home with our affordable home loan schemes with tenure up to 30 years."
                     android:textColor="@color/text_secondary"
                     android:textSize="14sp"
-                    android:layout_marginTop="8dp"
-                    android:lineSpacingExtra="2dp" />
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Features:\n- Tenure up to 30 years\n- Doorstep service\n- Tax benefits under Section 24 &amp; 80C"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
-                    android:layout_marginTop="12dp" />
+                    android:layout_marginTop="8dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- CAR LOAN -->
+        <!-- VEHICLE LOAN -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -205,18 +208,10 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Drive home your favorite car with up to 90% on-road financing. Special rates for electric vehicles to support a greener future."
+                    android:text="Drive home your favorite car with up to 90% financing and special rates for EVs."
                     android:textColor="@color/text_secondary"
                     android:textSize="14sp"
-                    android:layout_marginTop="8dp"
-                    android:lineSpacingExtra="2dp" />
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Features:\n- Funding for new and pre-owned cars\n- Fixed interest rates\n- Quick online approval"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
-                    android:layout_marginTop="12dp" />
+                    android:layout_marginTop="8dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -243,18 +238,10 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Invest in your future with our education loans covering tuition fees, travel, and accommodation for studies in India or abroad."
+                    android:text="Invest in your future with loans covering tuition and travel for studies in India or abroad."
                     android:textColor="@color/text_secondary"
                     android:textSize="14sp"
-                    android:layout_marginTop="8dp"
-                    android:lineSpacingExtra="2dp" />
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Features:\n- Repayment starts after course completion\n- Loan up to ₹1 Crore\n- Coverage for 150+ premier institutes"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
-                    android:layout_marginTop="12dp" />
+                    android:layout_marginTop="8dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -262,30 +249,6 @@
         <View
             android:layout_width="match_parent"
             android:layout_height="48dp" />
-=======
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:paddingStart="12dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Bank-Grade Security"
-                        android:textColor="@color/white"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="256-bit AES encryption with biometric authentication."
-                        android:textColor="@color/text_grey"
-                        android:textSize="13sp"
-                        android:paddingTop="4dp" />
-                </LinearLayout>
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
->>>>>>> 291f5a8 (Fix threshold formulas, sync motion/keystroke logic, update email alerts, and remove chatbot/notes)
 
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>
