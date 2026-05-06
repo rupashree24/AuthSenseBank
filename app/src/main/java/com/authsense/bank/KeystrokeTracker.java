@@ -23,6 +23,7 @@ public class KeystrokeTracker {
     }
 
     public void recordKeystroke(float pressure) {
+        if (pressure <= 0f) pressure = 0.5f;
         long currentTime = System.currentTimeMillis();
         
         if (lastTouchTime > 0) {

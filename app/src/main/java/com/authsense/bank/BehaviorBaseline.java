@@ -47,7 +47,8 @@ public class BehaviorBaseline {
     public double calculateKeystrokeAnomalyScore(KeystrokeTracker current) {
         if (!isBaselineComplete) return 0;
         // Current raw score
-        double currentRaw = (current.getMeanKeystrokeInterval() * 0.7) + (current.getMeanPressure() * 100 * 0.3);
+        double normalizedInterval = Math.min(current.getMeanKeystrokeInterval(), 1000.0) / 10.0;
+        double currentRaw = (normalizedInterval * 0.7) + (current.getMeanPressure() * 100 * 0.3);
         // Current error (distance from training mean)
         return Math.abs(currentRaw - meanKeyRaw);
     }
@@ -65,7 +66,8 @@ public class BehaviorBaseline {
     public void updateBaseline(KeystrokeTracker current, double mse, double alpha) {
         if (!isBaselineComplete) return;
         // Slow adaptive learning for the raw mean
-        double currentRaw = (current.getMeanKeystrokeInterval() * 0.7) + (current.getMeanPressure() * 100 * 0.3);
+        double normalizedInterval = Math.min(current.getMeanKeystrokeInterval(), 1000.0) / 10.0;
+        double currentRaw = (normalizedInterval * 0.7) + (current.getMeanPressure() * 100 * 0.3);
         this.meanKeyRaw = (alpha * currentRaw) + (1 - alpha) * this.meanKeyRaw;
         
         if (mse < getMotionThreshold() * 1.1) {

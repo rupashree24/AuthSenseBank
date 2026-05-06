@@ -104,7 +104,7 @@ public class BaselineCollectionActivity extends AppCompatActivity implements Sen
     }
 
     /**
-     * Record motion MSE and sample keystroke state for baseline computation
+     * Record motion MSE
      */
     private void recordMotionMSE() {
         try {
@@ -124,12 +124,6 @@ public class BaselineCollectionActivity extends AppCompatActivity implements Sen
 
             inputTensor.close();
             result.close();
-            
-            // Collect raw keystroke data sample for variance calculation
-            if (keystrokeTracker.getKeystrokeCount() > 0) {
-                double currentRaw = (keystrokeTracker.getMeanKeystrokeInterval() * 0.7) + (keystrokeTracker.getMeanPressure() * 100 * 0.3);
-                collectionKeyScores.add(currentRaw);
-            }
 
             Log.d(TAG, "Motion MSE: " + mse);
         } catch (Exception e) {
@@ -151,12 +145,20 @@ public class BaselineCollectionActivity extends AppCompatActivity implements Sen
     }
 
     @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        // Record pressure only on initial touch to simulate keystroke
+    public boolean dispatchTouchEvent(MotionEvent event) {
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            keystrokeTracker.recordKeystroke(event.getPressure());
+            float pressure = event.getPressure();
+            if (pressure <= 0f) pressure = 0.5f;
+            keystrokeTracker.recordKeystroke(pressure);
+
+            // Sample score on every touch once we have enough data
+            if (keystrokeTracker.hasEnoughData()) {
+                double normalizedInterval = Math.min(keystrokeTracker.getMeanKeystrokeInterval(), 1000.0) / 10.0;
+                double currentRaw = (normalizedInterval * 0.7) + (keystrokeTracker.getMeanPressure() * 100 * 0.3);
+                collectionKeyScores.add(currentRaw);
+            }
         }
-        return super.onTouchEvent(event);
+        return super.dispatchTouchEvent(event);
     }
 
     private void updateStatus() {

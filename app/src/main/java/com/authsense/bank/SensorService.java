@@ -188,7 +188,8 @@ public class SensorService extends Service implements SensorEventListener, TextT
         collectionMSEs.add(mse);
         
         if (keystrokeTracker.hasEnoughData()) {
-            double currentRaw = (keystrokeTracker.getMeanKeystrokeInterval() * 0.7) + (keystrokeTracker.getMeanPressure() * 100 * 0.3);
+            double normalizedInterval = Math.min(keystrokeTracker.getMeanKeystrokeInterval(), 1000.0) / 10.0;
+            double currentRaw = (normalizedInterval * 0.7) + (keystrokeTracker.getMeanPressure() * 100 * 0.3);
             collectionKeyScores.add(currentRaw);
         }
 
@@ -218,8 +219,10 @@ public class SensorService extends Service implements SensorEventListener, TextT
         double keyThreshold = behaviorBaseline.getKeystrokeThreshold();
         boolean isKeystrokeAnomaly = keystrokeTracker.hasEnoughData() && (keyDeviation > keyThreshold);
         
-        Log.d(TAG, String.format(Locale.US, "🛡️ Risk: %.1f | MSE: %.4f (Th: %.4f) | Key: %.1f (Th: %.1f)", 
-            riskScore, mse, motionThreshold, keyDeviation, keyThreshold));
+        double normalizedInterval = Math.min(keystrokeTracker.getMeanKeystrokeInterval(), 1000.0) / 10.0;
+        double currentRaw = (normalizedInterval * 0.7) + (keystrokeTracker.getMeanPressure() * 100 * 0.3);
+        Log.d(TAG, String.format(Locale.US, "🛡️ Risk: %.1f | MSE: %.4f (Th: %.4f) | KeyRaw: %.1f (Th: %.1f) | KeyDev: %.1f",
+                riskScore, mse, motionThreshold, currentRaw, keyThreshold, keyDeviation));
 
         if (isMotionAnomaly || isKeystrokeAnomaly) {
             riskScore += RISK_INCREMENT;
